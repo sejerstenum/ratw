@@ -1,55 +1,163 @@
-Product name
+# SPECS.md — Race Across the World (RATW) Tracker
 
-Race Across the World — Route & Checkpoint Tracker (RATW Tracker)
+## 0) Product
 
-1) Purpose
+**Name:** RATW Tracker — Route & Checkpoint Planner
+**Audience:** Production staff (field + office), post, safety
+**Goal:** Track possible routes (bus, taxi, private lifts), forecast arrivals to next checkpoints, and keep a live, editable overview per team and leg.
 
-A lightweight, production‑side web application to manage team routes, connections, and leg progress during the filming of Race Across the World. The tool supports fast updates when contestants make new choices, provides real‑time overviews, and ensures continuity across sessions.
+---
 
-2) Core requirements
+## 1) Scope (MVP)
 
-Auto‑save and auto‑load: Application state persists locally and/or to a database. Any action (adding a route, editing a connection, switching legs) is saved immediately. On reopening, the last saved state is loaded automatically.
+* **5 Teams** supported out of the box (configurable later).
+* **Leg selector:** Choose **Leg 1–6** globally; all views filter to the selected leg.
+* **Connections plotting:** Add transport connections with **type** (bus/taxi/private lift/walking/ferry/etc.), **from → to city**, **departure**, **arrival**, **cost (optional)**, **notes**.
+* **Mandatory breaks:** Insert **break/wait/overnight/job** blocks that adjust the route timeline and ETA.
+* **Overview:** For each team, see a **timeline + table** of segments for the selected leg and a **forecasted arrival** at the next checkpoint.
+* **Editable & resilient:** In‑place edits, reorder, delete. All dependent timings/forecasts update immediately.
+* **Auto‑save & auto‑load:** Any change saves instantly; app loads last state on launch without user action.
 
-Multi‑team tracking: Default setup for 5 teams, each with an independent route view.
+### Non‑Goals (Phase 1)
 
-Leg selector: Dropdown or navigation to switch between legs (1 through 6).
+* Live GPS tracking, map tiles, or crew logistics (can arrive in Phase 2).
 
-Transport plotting: Ability to add transport connections:
+---
 
-Type (bus, taxi, private lift, walking, ferry, etc.)
+## 2) Functional requirements
 
-Departure time
+### 2.1 Teams & legs
 
-Arrival time
+* **Five teams** are created by default: Team A–E (renameable).
+* Global **Leg Selector (1–6)** filters all data.
+* Each team has a **route** composed of ordered **segments** (transport or break types).
 
-From city → To city
+### 2.2 Segment types
 
-Cost (optional)
+* **Transport:** bus, taxi, private lift, train, boat/ferry, walking.
+* **Non‑transport:** break (rest), overnight, waiting, job.
+  Each segment has: `id, teamId, legNo, type, fromCity, toCity, depTime, arrTime, cost?, currency?, notes?`.
 
-Mandatory breaks: Insert stops (e.g., overnight, waiting, jobs) that adjust timeline and arrival forecasts.
+### 2.3 Time rules & validation
 
-Dynamic overview: Generate an overview of each team’s progress through the leg (timeline view + table summary).
+* **Arrival must be after departure** (strict).
+* Segments within a team+leg must not **overlap** (enforce or warn + suggest fix).
+* **Mandatory break rules** (configurable presets): e.g., “overnight runs from 20:00 to 06:00” or explicit start/end.
+* Changing any segment **recomputes** the downstream **forecasted arrival** to the next checkpoint.
 
-Customizability: Editing, reordering, or deleting routes as contestants change plans. Immediate recalculation of arrival times.
+### 2.4 Overview & forecasts
 
-Leg progression: Each team can progress independently but tied to the current leg.
+* **Team Overview** per leg:
 
-3) Users & roles
+  * cumulative elapsed time,
+  * last completed city,
+  * next checkpoint ETA (based on latest segment),
+  * budget spent (optional) and remaining (if tracked).
+* **Leg Summary**: table of all teams’ next checkpoint ETAs + latest status.
 
-Production staff (primary) — edit and update transport routes and checkpoints in real time.
+### 2.5 Editing flow
 
-Producers/Post (secondary) — view‑only access to team progress per leg.
+* Add a segment (form) → insert at selected index or append.
+* Edit inline (times, cities, type, cost).
+* Reorder via drag‑and‑drop.
+* Delete with undo (10s snackbar).
 
-No public/contestant access. Authentication can be light (internal use only).
+### 2.6 Persistence (auto‑save/load)
 
-4) Technical features
+* **Auto‑save** on every confirmed edit (debounced 250–500 ms).
+* **Primary storage:** Cloud DB (e.g., Supabase/Firebase/SQLite via API).
+* **Offline fallback:** localStorage/IndexedDB queue with background sync + conflict prompts.
+* **Auto‑load** restores last workspace (selected leg, expanded team, unsynced drafts).
 
-Frontend: React (with hooks, context for state), styled components or Tailwind.
+### 2.7 Import/Export
 
-Backend: Node.js + Express or serverless functions. Lightweight DB (SQLite, Supabase, or Firebase) for persistence.
+* Export selected leg/team as **CSV/Excel** (UTF‑8, semicolon‑aware).
+* Import CSV with column mapping wizard; validate and report errors before commit.
 
-State handling: Auto‑save via API or localStorage fallback if offline.
+### 2.8 Role access (lightweight)
 
-Visualization: Table + timeline/graph view per team.
+* **Editor** (default): full CRUD.
+* **Viewer:** read‑only.
+* Auth via email/password or magic link. (No public access.)
 
-Deployment: GitHub + Vercel/Netlify for quick deployment.
+---
+
+## 3) UX & UI
+
+* **Global header:** Leg selector (1–6), team quick filters, search by city.
+* **Main pane:** For selected team → **Route Table** (segments) + **Timeline**.
+* **Right pane:** **Leg Summary** (all teams’ ETAs and latest city).
+* **Status indicators:** saving…, saved, offline, conflict.
+* **Keyboard affordances:** Enter to save, Esc to cancel, ↑/↓ navigate rows.
+
+---
+
+## 4) Architecture
+
+* **Frontend:** React + Vite, TypeScript, Tailwind.
+
+* **State:** React Query (server state) + Zustand/Context (UI state).
+
+* **Backend:** Node/Express (or Supabase RPC).
+
+* **DB schema (minimal):**
+
+  * `seasons(id, name)` (future‑proof)
+  * `legs(id, number, name?, seasonId)`
+  * `teams(id, code, name)`
+  * `segments(id, teamId, legNo, type, fromCity, toCity, depTime, arrTime, cost, currency, notes, orderIdx)`
+  * `user_settings(userId, lastLeg, uiPrefs)`
+
+* **Time handling:** store **ISO 8601** UTC; display in user’s local TZ; guard against DST.
+
+---
+
+## 5) Autosave details
+
+* Debounce write; display **non‑blocking** “Saving…” → “Saved”.
+* Network failures queue writes; retry with exponential backoff.
+* Conflict strategy: last‑write‑wins with **diff preview** and **merge** option.
+
+---
+
+## 6) Calculations
+
+* **ETA to next checkpoint:** last `arrTime` in team’s current leg where `toCity == checkpointCity` or final segment.
+* **Elapsed time:** sum of `(arrTime - depTime)` for all leg segments (optionally excluding break types from “moving time”).
+* **Validation helpers:** reject if `arrTime <= depTime`; warn if segments gap is negative; highlight overlaps.
+
+---
+
+## 7) Testing & QA
+
+* **Unit tests:** time validation, overlap detection, ETA calc.
+* **Integration:** autosave queue, offline recovery, import/export round‑trip.
+* **E2E (Playwright):** add/edit/reorder/delete scenario per team, per leg.
+
+---
+
+## 8) Performance & reliability
+
+* Virtualize long tables; O(1) reorder via `orderIdx`.
+* Guardrails for massive copy/paste imports.
+* Service worker for PWA offline shell + background sync.
+
+---
+
+## 9) Security & privacy
+
+* Role‑based permissions; all endpoints behind auth.
+* HTTPS only; CSRF protection; input sanitation.
+* Minimal PII (names only); no passports stored in MVP.
+
+---
+
+## 10) Acceptance criteria (MVP)
+
+1. I can select **Leg 1–6**; all views filter accordingly.
+2. I can add/edit/reorder/delete segments for **each of 5 teams**.
+3. The app **auto‑saves** every change and **auto‑loads** previous state on relaunch.
+4. Mandatory breaks affect ETAs.
+5. Overlaps are flagged; invalid times are blocked.
+6. CSV export/import works with validation.
+7. Works offline and reconciles on reconnect without data loss.
