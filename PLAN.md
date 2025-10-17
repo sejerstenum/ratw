@@ -202,14 +202,6 @@ This plan breaks the RATW Tracker MVP into short iterations you can test end‑t
 
 ---
 
-## Milestones & timeline (suggested)
-
-* **M1 (Weeks 1–2):** Iterations 0–2
-* **M2 (Weeks 3–4):** Iterations 3–5
-* **M3 (Week 5):** Iterations 6–8
-
----
-
 ## Branch & PR policy
 
 * Create feature branches per iteration.
