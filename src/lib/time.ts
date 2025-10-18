@@ -3,12 +3,6 @@ import { isNonMovementSegmentType, type Segment } from '../features/segments/seg
 const MS_IN_MINUTE = 60_000;
 const MS_IN_HOUR = 60 * MS_IN_MINUTE;
 
-export const utcDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'UTC',
-});
-
 export const normaliseIsoString = (date: Date): string => date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 export const parseIsoDate = (value: string | null | undefined): Date | null => {
@@ -179,7 +173,12 @@ export const formatEta = (iso: string | null): string => {
   if (!date) {
     return '—';
   }
-  return `${utcDateTimeFormatter.format(date)} UTC`;
+  const pad = (value: number): string => value.toString().padStart(2, '0');
+  const day = pad(date.getUTCDate());
+  const month = pad(date.getUTCMonth() + 1);
+  const hours = pad(date.getUTCHours());
+  const minutes = pad(date.getUTCMinutes());
+  return `${day}-${month} @ ${hours}:${minutes}`;
 };
 
 export const formatLastCity = (value: string | null): string => value ?? '—';

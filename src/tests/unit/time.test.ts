@@ -6,6 +6,7 @@ import {
   calculateEta,
   calculateLegMetrics,
   formatDuration,
+  formatEta,
 } from '../../lib/time';
 
 const buildSegment = (overrides: Partial<Segment>): Segment => ({
@@ -98,5 +99,11 @@ describe('time helpers', () => {
       elapsedMovementMs: 0,
       elapsedTotalMs: 0,
     });
+  });
+
+  it('formats the ETA in the requested day-month and time format', () => {
+    expect(formatEta('2025-10-28T08:30:00Z')).toBe('28-10 @ 08:30');
+    expect(formatEta(null)).toBe('—');
+    expect(formatEta('invalid')).toBe('—');
   });
 });
