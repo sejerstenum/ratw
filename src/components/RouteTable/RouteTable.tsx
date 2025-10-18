@@ -3,7 +3,12 @@ import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
-import { selectSegments, useSegmentsStore } from '../../features/segments/segments.store';
+import {
+  selectPersistenceMeta,
+  selectSegments,
+  type PersistenceStatus,
+  useSegmentsStore,
+} from '../../features/segments/segments.store';
 import { CHECKPOINT_CITIES } from '../../features/segments/checkpoints';
 import {
   type LegNumber,
@@ -26,6 +31,11 @@ import {
   formatLastCity,
   formatUtcDateTime,
 } from '../../lib/time';
+import {
+  acceptRemoteSnapshot,
+  describeConflictDifferences,
+  keepLocalSnapshot,
+} from '../../features/segments/segments.persistence';
 import { NewSegmentRow } from './NewSegmentRow';
 import { SegmentRow } from './SegmentRow';
 
@@ -50,6 +60,24 @@ interface PendingDeletion {
   index: number;
   timeoutId: number;
 }
+
+const STATUS_BADGE: Record<PersistenceStatus, string> = {
+  idle: 'border-slate-700 bg-slate-800/60 text-slate-200',
+  queued: 'border-amber-500/60 bg-amber-500/10 text-amber-100',
+  saving: 'border-sky-500/60 bg-sky-500/10 text-sky-100',
+  saved: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100',
+  offline: 'border-amber-500/60 bg-amber-500/10 text-amber-100',
+  error: 'border-rose-500/60 bg-rose-500/10 text-rose-100',
+};
+
+const STATUS_LABEL: Record<PersistenceStatus, string> = {
+  idle: 'Autosave ready',
+  queued: 'Autosave queued',
+  saving: 'Saving…',
+  saved: 'Saved',
+  offline: 'Offline',
+  error: 'Sync issue',
+};
 
 const createFormState = (segment: Segment): SegmentFormState => ({
   type: segment.type,
@@ -138,6 +166,13 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
   const deleteSegment = useSegmentsStore((state) => state.deleteSegment);
   const insertSegment = useSegmentsStore((state) => state.insertSegment);
   const reorderSegments = useSegmentsStore((state) => state.reorderSegments);
+  const { status, lastSavedAt, outboxSize, syncError, conflict } = useSegmentsStore(
+    selectPersistenceMeta,
+  );
+  const conflictSummary = useMemo(
+    () => (conflict ? describeConflictDifferences(conflict) : []),
+    [conflict],
+  );
 
   const filteredSegments = useMemo(
     () =>
@@ -290,6 +325,20 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
         <p className="mt-1 text-sm text-slate-300">
           Manage the current leg for Team {teamId}. Edit inline, drag to reorder, and the tracker will block overlapping times.
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span
+            className={`rounded-full border px-3 py-1 font-semibold ${STATUS_BADGE[status] ?? STATUS_BADGE.idle}`}
+          >
+            {STATUS_LABEL[status] ?? STATUS_LABEL.idle}
+          </span>
+          {status === 'saved' && lastSavedAt ? (
+            <span className="text-slate-400">Last saved {formatUtcDateTime(lastSavedAt)}</span>
+          ) : null}
+          {status === 'offline' && outboxSize > 0 ? (
+            <span className="text-amber-200">{outboxSize} change(s) waiting to sync</span>
+          ) : null}
+          {syncError && !conflict ? <span className="text-rose-300">{syncError}</span> : null}
+        </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-400">Last city</p>
@@ -345,6 +394,47 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
           ) : null}
         </div>
       </header>
+
+      {conflict ? (
+        <div className="rounded-xl border border-amber-500/60 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="font-semibold text-amber-50">Cloud update available</p>
+              <p className="mt-1 text-xs text-amber-200">
+                A newer snapshot was saved at {formatUtcDateTime(conflict.remoteUpdatedAt)}. Review the changes below or
+                decide which version to keep.
+              </p>
+              {conflictSummary.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {conflictSummary.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-2 text-xs font-semibold md:text-sm">
+              <button
+                className="rounded-lg border border-amber-400/80 bg-amber-400/20 px-3 py-2 text-amber-50 transition hover:border-amber-200 hover:bg-amber-300/30"
+                type="button"
+                onClick={() => {
+                  void acceptRemoteSnapshot();
+                }}
+              >
+                Apply cloud update
+              </button>
+              <button
+                className="rounded-lg border border-slate-200/40 px-3 py-2 text-amber-100 transition hover:border-slate-200/80 hover:bg-slate-200/10"
+                type="button"
+                onClick={() => {
+                  void keepLocalSnapshot();
+                }}
+              >
+                Keep my changes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DndContext
         collisionDetection={closestCenter}
