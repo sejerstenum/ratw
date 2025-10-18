@@ -24,6 +24,7 @@ import {
   formatDuration,
   formatEta,
   formatLastCity,
+  formatUtcDateTime,
 } from '../../lib/time';
 import { NewSegmentRow } from './NewSegmentRow';
 import { SegmentRow } from './SegmentRow';
@@ -196,7 +197,9 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     addSegment(result.segment);
     setPresetFeedback({
       type: 'success',
-      message: `${result.preset.label} inserted (${result.segment.depTime} → ${result.segment.arrTime}).`,
+      message: `${
+        result.preset.label
+      } inserted (${formatUtcDateTime(result.segment.depTime)} → ${formatUtcDateTime(result.segment.arrTime)}).`,
     });
   };
 

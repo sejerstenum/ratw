@@ -5,6 +5,8 @@ const MS_IN_HOUR = 60 * MS_IN_MINUTE;
 
 export const normaliseIsoString = (date: Date): string => date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
+const padTwo = (value: number): string => value.toString().padStart(2, '0');
+
 export const parseIsoDate = (value: string | null | undefined): Date | null => {
   if (!value) {
     return null;
@@ -165,7 +167,7 @@ export const formatDuration = (ms: number): string => {
   return parts.join(' ');
 };
 
-export const formatEta = (iso: string | null): string => {
+export const formatUtcDateTime = (iso: string | null): string => {
   if (!iso) {
     return '—';
   }
@@ -173,13 +175,14 @@ export const formatEta = (iso: string | null): string => {
   if (!date) {
     return '—';
   }
-  const pad = (value: number): string => value.toString().padStart(2, '0');
-  const day = pad(date.getUTCDate());
-  const month = pad(date.getUTCMonth() + 1);
-  const hours = pad(date.getUTCHours());
-  const minutes = pad(date.getUTCMinutes());
+  const day = padTwo(date.getUTCDate());
+  const month = padTwo(date.getUTCMonth() + 1);
+  const hours = padTwo(date.getUTCHours());
+  const minutes = padTwo(date.getUTCMinutes());
   return `${day}-${month} @ ${hours}:${minutes}`;
 };
+
+export const formatEta = (iso: string | null): string => formatUtcDateTime(iso);
 
 export const formatLastCity = (value: string | null): string => value ?? '—';
 
