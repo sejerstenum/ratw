@@ -1,20 +1,22 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import {
   LEG_NUMBERS,
   SEGMENT_TYPES,
   TEAM_IDS,
+  type LegNumber,
   type Segment,
   type SegmentInput,
   type SegmentType,
+  type TeamId,
 } from './segments.types';
 import { selectSegments, useSegmentsStore } from './segments.store';
 
 type SegmentDraft = Omit<SegmentInput, 'cost'> & { cost?: string };
 
-const createEmptyDraft = (): SegmentDraft => ({
-  teamId: 'A',
-  legNo: 1,
+const createEmptyDraft = (teamId: TeamId, legNo: LegNumber): SegmentDraft => ({
+  teamId,
+  legNo,
   type: 'bus',
   fromCity: '',
   toCity: '',
@@ -24,6 +26,11 @@ const createEmptyDraft = (): SegmentDraft => ({
   currency: 'EUR',
   notes: '',
 });
+
+interface SegmentsDevPanelProps {
+  activeLeg: LegNumber;
+  activeTeam: TeamId;
+}
 
 const toNumber = (value?: string) => {
   if (value === undefined || value === '') {
@@ -38,25 +45,35 @@ const formatIsoForInput = (iso: string) => iso?.replace('Z', '');
 const parseInputToIso = (value: string) =>
   value.endsWith('Z') ? value : `${value}${value ? 'Z' : ''}`;
 
-export function SegmentsDevPanel() {
+export function SegmentsDevPanel({ activeLeg, activeTeam }: SegmentsDevPanelProps) {
   const segments = useSegmentsStore(selectSegments);
   const addSegment = useSegmentsStore((state) => state.addSegment);
   const updateSegment = useSegmentsStore((state) => state.updateSegment);
   const deleteSegment = useSegmentsStore((state) => state.deleteSegment);
   const reset = useSegmentsStore((state) => state.reset);
 
-  const [draft, setDraft] = useState<SegmentDraft>(createEmptyDraft);
+  const [draft, setDraft] = useState<SegmentDraft>(() => createEmptyDraft(activeTeam, activeLeg));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<SegmentDraft | null>(null);
 
-  const groupedSegments = useMemo(() => {
-    return segments.reduce<Record<string, Segment[]>>((acc, segment) => {
-      const key = `${segment.teamId}-leg-${segment.legNo}`;
-      acc[key] ??= [];
-      acc[key].push(segment);
-      return acc;
-    }, {});
-  }, [segments]);
+  const filteredSegments = useMemo(
+    () =>
+      segments
+        .filter((segment) => segment.teamId === activeTeam && segment.legNo === activeLeg)
+        .sort((a, b) => a.orderIdx - b.orderIdx),
+    [segments, activeTeam, activeLeg],
+  );
+
+  useEffect(() => {
+    setDraft((prev) => ({ ...prev, teamId: activeTeam, legNo: activeLeg }));
+  }, [activeTeam, activeLeg]);
+
+  useEffect(() => {
+    if (editingId && !filteredSegments.some((segment) => segment.id === editingId)) {
+      setEditingId(null);
+      setEditingDraft(null);
+    }
+  }, [editingId, filteredSegments]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,7 +86,7 @@ export function SegmentsDevPanel() {
     };
 
     addSegment(payload);
-    setDraft((prev) => ({ ...createEmptyDraft(), teamId: prev.teamId, legNo: prev.legNo }));
+    setDraft(createEmptyDraft(activeTeam, activeLeg));
   };
 
   const startEditing = (segment: Segment) => {
@@ -114,8 +131,9 @@ export function SegmentsDevPanel() {
       <header>
         <h2 className="text-lg font-semibold text-white">Segments development console</h2>
         <p className="mt-2 text-sm text-slate-300">
-          A temporary interface to exercise the in-memory store during Iteration 1. Add, update, and
-          delete segments to verify ordering and data handling before building richer UI.
+          A temporary interface to exercise the in-memory store during Iteration 2. Filter by leg and
+          team, then add, update, and delete segments to verify ordering before the editable route
+          table arrives.
         </p>
       </header>
 
@@ -246,7 +264,7 @@ export function SegmentsDevPanel() {
               type="button"
               onClick={() => {
                 reset();
-                setDraft(createEmptyDraft());
+                setDraft(createEmptyDraft(activeTeam, activeLeg));
                 cancelEditing();
               }}
             >
@@ -257,152 +275,154 @@ export function SegmentsDevPanel() {
       </div>
 
       <div className="space-y-6">
-        {Object.entries(groupedSegments).map(([group, groupSegments]) => (
-          <div key={group} className="rounded-xl border border-slate-800/80 bg-slate-900/60">
-            <header className="flex items-center justify-between border-b border-slate-800 px-4 py-3 text-sm text-slate-300">
-              <span className="font-semibold text-white">
-                Team {groupSegments[0]?.teamId} · Leg {groupSegments[0]?.legNo}
-              </span>
-              <span>{groupSegments.length} segments</span>
-            </header>
+        <div className="rounded-xl border border-slate-800/80 bg-slate-900/60">
+          <header className="flex items-center justify-between border-b border-slate-800 px-4 py-3 text-sm text-slate-300">
+            <span className="font-semibold text-white">Team {activeTeam} · Leg {activeLeg}</span>
+            <span>{filteredSegments.length} segments</span>
+          </header>
+          {filteredSegments.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-slate-400">
+              No segments yet for this selection. Use the form above to add the first one.
+            </p>
+          ) : (
             <ul className="divide-y divide-slate-800">
-              {groupSegments
-                .slice()
-                .sort((a, b) => a.orderIdx - b.orderIdx)
-                .map((segment) => {
-                  const editing = isEditing(segment.id);
-                  const currentDraft = editing && editingDraft ? editingDraft : null;
+              {filteredSegments.map((segment) => {
+                const editing = isEditing(segment.id);
+                const currentDraft = editing && editingDraft ? editingDraft : null;
 
-                  return (
-                    <li key={segment.id} className="grid gap-4 px-4 py-4 text-sm text-slate-200 md:grid-cols-[2fr_2fr_2fr_1fr_1fr]">
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-slate-400">Route</div>
-                        {editing ? (
-                          <div className="mt-2 space-y-2">
-                            <input
-                              className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-                              value={currentDraft?.fromCity ?? ''}
-                              onChange={(event) =>
-                                setEditingDraft((prev) =>
-                                  prev ? { ...prev, fromCity: event.target.value } : prev,
-                                )
-                              }
-                            />
-                            <input
-                              className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-                              value={currentDraft?.toCity ?? ''}
-                              onChange={(event) =>
-                                setEditingDraft((prev) =>
-                                  prev ? { ...prev, toCity: event.target.value } : prev,
-                                )
-                              }
-                            />
-                          </div>
-                        ) : (
-                          <p className="mt-2 font-medium text-white">
-                            {segment.fromCity} → {segment.toCity}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-slate-400">Type: {segment.type}</p>
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-slate-400">Departure</div>
-                        {editing ? (
+                return (
+                  <li
+                    key={segment.id}
+                    className="grid gap-4 px-4 py-4 text-sm text-slate-200 md:grid-cols-[2fr_2fr_2fr_1fr_1fr]"
+                  >
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Route</div>
+                      {editing ? (
+                        <div className="mt-2 space-y-2">
                           <input
-                            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-                            value={currentDraft?.depTime ?? ''}
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+                            value={currentDraft?.fromCity ?? ''}
                             onChange={(event) =>
                               setEditingDraft((prev) =>
-                                prev ? { ...prev, depTime: event.target.value } : prev,
+                                prev ? { ...prev, fromCity: event.target.value } : prev,
                               )
                             }
                           />
-                        ) : (
-                          <p className="mt-2 font-medium text-white">{segment.depTime}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-slate-400">Arrival</div>
-                        {editing ? (
                           <input
-                            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-                            value={currentDraft?.arrTime ?? ''}
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+                            value={currentDraft?.toCity ?? ''}
                             onChange={(event) =>
                               setEditingDraft((prev) =>
-                                prev ? { ...prev, arrTime: event.target.value } : prev,
+                                prev ? { ...prev, toCity: event.target.value } : prev,
                               )
                             }
                           />
-                        ) : (
-                          <p className="mt-2 font-medium text-white">{segment.arrTime}</p>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <p className="mt-2 font-medium text-white">
+                          {segment.fromCity} → {segment.toCity}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-slate-400">Type: {segment.type}</p>
+                    </div>
 
-                      <div>
-                        <div className="text-xs uppercase tracking-wide text-slate-400">Cost</div>
-                        {editing ? (
-                          <input
-                            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-                            value={currentDraft?.cost ?? ''}
-                            onChange={(event) =>
-                              setEditingDraft((prev) =>
-                                prev ? { ...prev, cost: event.target.value } : prev,
-                              )
-                            }
-                          />
-                        ) : (
-                          <p className="mt-2 font-medium text-white">
-                            {segment.cost ? `${segment.cost} ${segment.currency ?? ''}` : '—'}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-slate-400">Order #{segment.orderIdx + 1}</p>
-                      </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Departure</div>
+                      {editing ? (
+                        <input
+                          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+                          value={currentDraft?.depTime ?? ''}
+                          onChange={(event) =>
+                            setEditingDraft((prev) =>
+                              prev ? { ...prev, depTime: event.target.value } : prev,
+                            )
+                          }
+                        />
+                      ) : (
+                        <p className="mt-2 font-medium text-white">{segment.depTime}</p>
+                      )}
+                    </div>
 
-                      <div className="flex items-start justify-end gap-2">
-                        {editing ? (
-                          <>
-                            <button
-                              className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
-                              onClick={saveEditing}
-                              type="button"
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
-                              onClick={cancelEditing}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
-                              onClick={() => startEditing(segment)}
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-rose-50 hover:bg-rose-400"
-                              onClick={() => deleteSegment(segment.id)}
-                              type="button"
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Arrival</div>
+                      {editing ? (
+                        <input
+                          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+                          value={currentDraft?.arrTime ?? ''}
+                          onChange={(event) =>
+                            setEditingDraft((prev) =>
+                              prev ? { ...prev, arrTime: event.target.value } : prev,
+                            )
+                          }
+                        />
+                      ) : (
+                        <p className="mt-2 font-medium text-white">{segment.arrTime}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Cost</div>
+                      {editing ? (
+                        <input
+                          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+                          value={currentDraft?.cost ?? ''}
+                          onChange={(event) =>
+                            setEditingDraft((prev) =>
+                              prev ? { ...prev, cost: event.target.value } : prev,
+                            )
+                          }
+                        />
+                      ) : (
+                        <p className="mt-2 font-medium text-white">
+                          {segment.cost ? `${segment.cost} ${segment.currency ?? ''}` : '—'}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-slate-400">Order #{segment.orderIdx + 1}</p>
+                    </div>
+
+                    <div className="flex items-start justify-end gap-2">
+                      {editing ? (
+                        <>
+                          <button
+                            className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 hover:bg-emerald-400"
+                            onClick={saveEditing}
+                            type="button"
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                            onClick={cancelEditing}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500"
+                            onClick={() => startEditing(segment)}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-rose-50 hover:bg-rose-400"
+                            onClick={() => deleteSegment(segment.id)}
+                            type="button"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
-          </div>
-        ))}
+          )}
+        </div>
       </div>
     </section>
   );
