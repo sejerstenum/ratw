@@ -3,7 +3,13 @@ import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
-import { selectSegments, useSegmentsStore } from '../../features/segments/segments.store';
+import {
+  selectPersistenceMeta,
+  selectSegments,
+  type PersistenceStatus,
+  useSegmentsStore,
+} from '../../features/segments/segments.store';
+import { CHECKPOINT_CITIES } from '../../features/segments/checkpoints';
 import {
   type LegNumber,
   SEGMENT_TYPES,
@@ -13,6 +19,23 @@ import {
   type TeamId,
 } from '../../features/segments/segments.types';
 import { validateSegmentTiming } from '../../features/segments/segments.validators';
+import {
+  SEGMENT_PRESETS,
+  buildPresetSegment,
+  type SegmentPresetId,
+} from '../../features/segments/segmentPresets';
+import {
+  calculateLegMetrics,
+  formatDuration,
+  formatEta,
+  formatLastCity,
+  formatUtcDateTime,
+} from '../../lib/time';
+import {
+  acceptRemoteSnapshot,
+  describeConflictDifferences,
+  keepLocalSnapshot,
+} from '../../features/segments/segments.persistence';
 import { NewSegmentRow } from './NewSegmentRow';
 import { SegmentRow } from './SegmentRow';
 
@@ -37,6 +60,24 @@ interface PendingDeletion {
   index: number;
   timeoutId: number;
 }
+
+const STATUS_BADGE: Record<PersistenceStatus, string> = {
+  idle: 'border-slate-700 bg-slate-800/60 text-slate-200',
+  queued: 'border-amber-500/60 bg-amber-500/10 text-amber-100',
+  saving: 'border-sky-500/60 bg-sky-500/10 text-sky-100',
+  saved: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100',
+  offline: 'border-amber-500/60 bg-amber-500/10 text-amber-100',
+  error: 'border-rose-500/60 bg-rose-500/10 text-rose-100',
+};
+
+const STATUS_LABEL: Record<PersistenceStatus, string> = {
+  idle: 'Autosave ready',
+  queued: 'Autosave queued',
+  saving: 'Saving…',
+  saved: 'Saved',
+  offline: 'Offline',
+  error: 'Sync issue',
+};
 
 const createFormState = (segment: Segment): SegmentFormState => ({
   type: segment.type,
@@ -125,6 +166,13 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
   const deleteSegment = useSegmentsStore((state) => state.deleteSegment);
   const insertSegment = useSegmentsStore((state) => state.insertSegment);
   const reorderSegments = useSegmentsStore((state) => state.reorderSegments);
+  const { status, lastSavedAt, outboxSize, syncError, conflict } = useSegmentsStore(
+    selectPersistenceMeta,
+  );
+  const conflictSummary = useMemo(
+    () => (conflict ? describeConflictDifferences(conflict) : []),
+    [conflict],
+  );
 
   const filteredSegments = useMemo(
     () =>
@@ -135,6 +183,9 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
   );
 
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
+  const [presetFeedback, setPresetFeedback] = useState<
+    { type: 'success' | 'error'; message: string } | null
+  >(null);
 
   useEffect(() => {
     return () => {
@@ -144,7 +195,48 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     };
   }, [pendingDeletion]);
 
+  useEffect(() => {
+    if (!presetFeedback) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setPresetFeedback(null);
+    }, 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [presetFeedback]);
+
   const siblings = filteredSegments;
+  const lastSegment = filteredSegments[filteredSegments.length - 1] ?? null;
+  const checkpointCity = CHECKPOINT_CITIES[legNo];
+  const metrics = useMemo(
+    () => calculateLegMetrics(filteredSegments, { checkpointCity }),
+    [filteredSegments, checkpointCity],
+  );
+
+  const handlePresetInsert = (presetId: SegmentPresetId) => {
+    const result = buildPresetSegment(presetId, { teamId, legNo, lastSegment });
+    if (!result.success) {
+      setPresetFeedback({ type: 'error', message: result.reason });
+      return;
+    }
+
+    const issues = validateSegmentTiming(result.segment, siblings);
+    if (issues.length > 0) {
+      setPresetFeedback({
+        type: 'error',
+        message: issues.map((issue) => issue.message).join(' '),
+      });
+      return;
+    }
+
+    addSegment(result.segment);
+    setPresetFeedback({
+      type: 'success',
+      message: `${
+        result.preset.label
+      } inserted (${formatUtcDateTime(result.segment.depTime)} → ${formatUtcDateTime(result.segment.arrTime)}).`,
+    });
+  };
 
   const handleCreate = (form: SegmentFormState): string[] => {
     const { payload, errors } = toPayload(form, teamId, legNo);
@@ -158,6 +250,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     addSegment(payload);
+    setPresetFeedback(null);
     return [];
   };
 
@@ -173,6 +266,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     updateSegment(segmentId, payload);
+    setPresetFeedback(null);
     return [];
   };
 
@@ -184,6 +278,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     deleteSegment(segmentId);
+    setPresetFeedback(null);
 
     const timeoutId = window.setTimeout(() => {
       setPendingDeletion(null);
@@ -230,7 +325,116 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
         <p className="mt-1 text-sm text-slate-300">
           Manage the current leg for Team {teamId}. Edit inline, drag to reorder, and the tracker will block overlapping times.
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span
+            className={`rounded-full border px-3 py-1 font-semibold ${STATUS_BADGE[status] ?? STATUS_BADGE.idle}`}
+          >
+            {STATUS_LABEL[status] ?? STATUS_LABEL.idle}
+          </span>
+          {status === 'saved' && lastSavedAt ? (
+            <span className="text-slate-400">Last saved {formatUtcDateTime(lastSavedAt)}</span>
+          ) : null}
+          {status === 'offline' && outboxSize > 0 ? (
+            <span className="text-amber-200">{outboxSize} change(s) waiting to sync</span>
+          ) : null}
+          {syncError && !conflict ? <span className="text-rose-300">{syncError}</span> : null}
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Last city</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatLastCity(metrics.lastCity)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Next checkpoint ETA</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatEta(metrics.etaIso)}</p>
+            {checkpointCity ? (
+              <p className="mt-1 text-xs text-slate-400">Checkpoint: {checkpointCity}</p>
+            ) : null}
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Moving time</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatDuration(metrics.elapsedMovementMs)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Total elapsed</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatDuration(metrics.elapsedTotalMs)}</p>
+          </div>
+        </div>
+        <div className="mt-6 rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Quick inserts</p>
+            {SEGMENT_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:opacity-60"
+                disabled={!lastSegment}
+                title={preset.description}
+                type="button"
+                onClick={() => handlePresetInsert(preset.id)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            {lastSegment
+              ? 'Preset blocks anchor to the latest segment and automatically adjust ETA calculations.'
+              : 'Add a segment with a destination to enable break and overnight presets.'}
+          </p>
+          {presetFeedback ? (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                presetFeedback.type === 'success'
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100'
+                  : 'border-rose-500/60 bg-rose-500/10 text-rose-100'
+              }`}
+            >
+              {presetFeedback.message}
+            </div>
+          ) : null}
+        </div>
       </header>
+
+      {conflict ? (
+        <div className="rounded-xl border border-amber-500/60 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="font-semibold text-amber-50">Cloud update available</p>
+              <p className="mt-1 text-xs text-amber-200">
+                A newer snapshot was saved at {formatUtcDateTime(conflict.remoteUpdatedAt)}. Review the changes below or
+                decide which version to keep.
+              </p>
+              {conflictSummary.length > 0 ? (
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {conflictSummary.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+            <div className="flex flex-col gap-2 text-xs font-semibold md:text-sm">
+              <button
+                className="rounded-lg border border-amber-400/80 bg-amber-400/20 px-3 py-2 text-amber-50 transition hover:border-amber-200 hover:bg-amber-300/30"
+                type="button"
+                onClick={() => {
+                  void acceptRemoteSnapshot();
+                }}
+              >
+                Apply cloud update
+              </button>
+              <button
+                className="rounded-lg border border-slate-200/40 px-3 py-2 text-amber-100 transition hover:border-slate-200/80 hover:bg-slate-200/10"
+                type="button"
+                onClick={() => {
+                  void keepLocalSnapshot();
+                }}
+              >
+                Keep my changes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <DndContext
         collisionDetection={closestCenter}

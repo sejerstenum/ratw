@@ -5,7 +5,7 @@ import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-d
 import { App } from '../../app/App';
 
 describe('App', () => {
-  it('renders the iteration 3 headline with the new route table', () => {
+  it('renders the iteration 4 headline with the break presets update', () => {
     render(
       <MemoryRouter>
         <App />
@@ -14,7 +14,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: /ratw tracker/i })).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: /iteration 3 · inline route management/i }),
+      screen.getByRole('heading', { name: /iteration 4 · mandatory breaks & eta forecasting/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/active leg/i)).toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: /teams/i })).toBeInTheDocument();

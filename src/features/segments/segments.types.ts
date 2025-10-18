@@ -58,3 +58,12 @@ export const SEGMENT_TYPES: SegmentType[] = [
   'waiting',
   'job',
 ];
+
+export const NON_MOVEMENT_SEGMENT_TYPES: SegmentType[] = ['break', 'overnight', 'waiting', 'job'];
+
+export const MOVEMENT_SEGMENT_TYPES: SegmentType[] = SEGMENT_TYPES.filter(
+  (type) => !NON_MOVEMENT_SEGMENT_TYPES.includes(type),
+);
+
+export const isNonMovementSegmentType = (type: SegmentType): boolean =>
+  NON_MOVEMENT_SEGMENT_TYPES.includes(type);
