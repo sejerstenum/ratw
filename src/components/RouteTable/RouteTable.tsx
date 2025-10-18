@@ -4,6 +4,7 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { selectSegments, useSegmentsStore } from '../../features/segments/segments.store';
+import { CHECKPOINT_CITIES } from '../../features/segments/checkpoints';
 import {
   type LegNumber,
   SEGMENT_TYPES,
@@ -13,6 +14,17 @@ import {
   type TeamId,
 } from '../../features/segments/segments.types';
 import { validateSegmentTiming } from '../../features/segments/segments.validators';
+import {
+  SEGMENT_PRESETS,
+  buildPresetSegment,
+  type SegmentPresetId,
+} from '../../features/segments/segmentPresets';
+import {
+  calculateLegMetrics,
+  formatDuration,
+  formatEta,
+  formatLastCity,
+} from '../../lib/time';
 import { NewSegmentRow } from './NewSegmentRow';
 import { SegmentRow } from './SegmentRow';
 
@@ -135,6 +147,9 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
   );
 
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
+  const [presetFeedback, setPresetFeedback] = useState<
+    { type: 'success' | 'error'; message: string } | null
+  >(null);
 
   useEffect(() => {
     return () => {
@@ -144,7 +159,46 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     };
   }, [pendingDeletion]);
 
+  useEffect(() => {
+    if (!presetFeedback) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setPresetFeedback(null);
+    }, 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [presetFeedback]);
+
   const siblings = filteredSegments;
+  const lastSegment = filteredSegments[filteredSegments.length - 1] ?? null;
+  const checkpointCity = CHECKPOINT_CITIES[legNo];
+  const metrics = useMemo(
+    () => calculateLegMetrics(filteredSegments, { checkpointCity }),
+    [filteredSegments, checkpointCity],
+  );
+
+  const handlePresetInsert = (presetId: SegmentPresetId) => {
+    const result = buildPresetSegment(presetId, { teamId, legNo, lastSegment });
+    if (!result.success) {
+      setPresetFeedback({ type: 'error', message: result.reason });
+      return;
+    }
+
+    const issues = validateSegmentTiming(result.segment, siblings);
+    if (issues.length > 0) {
+      setPresetFeedback({
+        type: 'error',
+        message: issues.map((issue) => issue.message).join(' '),
+      });
+      return;
+    }
+
+    addSegment(result.segment);
+    setPresetFeedback({
+      type: 'success',
+      message: `${result.preset.label} inserted (${result.segment.depTime} → ${result.segment.arrTime}).`,
+    });
+  };
 
   const handleCreate = (form: SegmentFormState): string[] => {
     const { payload, errors } = toPayload(form, teamId, legNo);
@@ -158,6 +212,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     addSegment(payload);
+    setPresetFeedback(null);
     return [];
   };
 
@@ -173,6 +228,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     updateSegment(segmentId, payload);
+    setPresetFeedback(null);
     return [];
   };
 
@@ -184,6 +240,7 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
     }
 
     deleteSegment(segmentId);
+    setPresetFeedback(null);
 
     const timeoutId = window.setTimeout(() => {
       setPendingDeletion(null);
@@ -230,6 +287,60 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
         <p className="mt-1 text-sm text-slate-300">
           Manage the current leg for Team {teamId}. Edit inline, drag to reorder, and the tracker will block overlapping times.
         </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Last city</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatLastCity(metrics.lastCity)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Next checkpoint ETA</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatEta(metrics.etaIso)}</p>
+            {checkpointCity ? (
+              <p className="mt-1 text-xs text-slate-400">Checkpoint: {checkpointCity}</p>
+            ) : null}
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Moving time</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatDuration(metrics.elapsedMovementMs)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Total elapsed</p>
+            <p className="mt-2 text-lg font-semibold text-white">{formatDuration(metrics.elapsedTotalMs)}</p>
+          </div>
+        </div>
+        <div className="mt-6 rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Quick inserts</p>
+            {SEGMENT_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 disabled:opacity-60"
+                disabled={!lastSegment}
+                title={preset.description}
+                type="button"
+                onClick={() => handlePresetInsert(preset.id)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            {lastSegment
+              ? 'Preset blocks anchor to the latest segment and automatically adjust ETA calculations.'
+              : 'Add a segment with a destination to enable break and overnight presets.'}
+          </p>
+          {presetFeedback ? (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2 text-sm ${
+                presetFeedback.type === 'success'
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100'
+                  : 'border-rose-500/60 bg-rose-500/10 text-rose-100'
+              }`}
+            >
+              {presetFeedback.message}
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <DndContext

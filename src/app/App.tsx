@@ -64,26 +64,26 @@ export function App() {
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8 shadow-lg shadow-slate-950/60">
-          <h2 className="text-xl font-semibold">Iteration 3 · Inline route management</h2>
+          <h2 className="text-xl font-semibold">Iteration 4 · Mandatory breaks &amp; ETA forecasting</h2>
           <p className="mt-3 text-sm text-slate-300">
-            The tracker now introduces an editable Route Table that keeps the store authoritative. Adjust the rows inline,
-            drag to reorder them, and the validation layer prevents impossible schedules or overlaps between segments.
+            Route management gains momentum: mandatory break presets now slot into the Route Table with one click, and
+            the tracker computes live ETAs for the next checkpoint plus total vs moving time for each team.
           </p>
           <div className="mt-6 grid gap-4 text-sm text-slate-200 sm:grid-cols-2">
             <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
               <h3 className="font-medium text-white">What&apos;s new</h3>
               <ul className="mt-2 space-y-1 text-slate-300">
-                <li>Editable grid with inline validation for each segment field.</li>
-                <li>Drag-and-drop reordering that updates the store order index.</li>
-                <li>Undo toast after deletions to recover accidental removals.</li>
+                <li>One-click break, overnight, waiting, and job presets anchored to the latest segment.</li>
+                <li>Automatic recalculation of moving vs total elapsed time per team and leg.</li>
+                <li>Checkpoint ETA forecasting that updates whenever segments are edited or reordered.</li>
               </ul>
             </div>
             <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
               <h3 className="font-medium text-white">Up next</h3>
               <ul className="mt-2 space-y-1 text-slate-300">
-                <li>Mandatory break presets to balance pacing.</li>
-                <li>Timeline visualisations aligned with the table order.</li>
-                <li>Autosave and persistence after the editing flow settles.</li>
+                <li>Autosave and offline-aware persistence.</li>
+                <li>Visual timeline synced with the Route Table.</li>
+                <li>Leg summary panel for cross-team monitoring.</li>
               </ul>
             </div>
           </div>
