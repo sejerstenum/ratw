@@ -238,13 +238,13 @@ export function RouteTable({ teamId, legNo }: RouteTableProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-900/60">
-          <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-200">
+          <table className="min-w-full table-fixed divide-y divide-slate-800 text-left text-sm text-slate-200">
             <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
               <tr>
-                <th className="w-10 px-4 py-3">Order</th>
-                <th className="w-32 px-4 py-3">Type</th>
-                <th className="px-4 py-3">From</th>
-                <th className="px-4 py-3">To</th>
+                <th className="w-12 px-4 py-3">Order</th>
+                <th className="w-36 px-4 py-3">Type</th>
+                <th className="w-60 px-4 py-3">From</th>
+                <th className="w-60 px-4 py-3">To</th>
                 <th className="px-4 py-3">Departure (UTC)</th>
                 <th className="px-4 py-3">Arrival (UTC)</th>
                 <th className="w-32 px-4 py-3">Cost</th>

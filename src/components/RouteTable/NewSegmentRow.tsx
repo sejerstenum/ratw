@@ -32,7 +32,7 @@ export function NewSegmentRow({ formState, availableTypes, onCreate }: NewSegmen
     <>
       <tr className="bg-slate-900/30">
         <td className="px-4 py-3 align-top text-xs text-slate-500">New</td>
-        <td className="px-4 py-3 align-top">
+        <td className="min-w-0 px-4 py-3 align-top">
           <select
             className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
             value={draft.type}
@@ -45,7 +45,7 @@ export function NewSegmentRow({ formState, availableTypes, onCreate }: NewSegmen
             ))}
           </select>
         </td>
-        <td className="px-4 py-3 align-top">
+        <td className="min-w-0 px-4 py-3 align-top">
           <input
             className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
             placeholder="From city"
@@ -53,7 +53,7 @@ export function NewSegmentRow({ formState, availableTypes, onCreate }: NewSegmen
             onChange={(event) => setDraft((prev) => ({ ...prev, fromCity: event.target.value }))}
           />
         </td>
-        <td className="px-4 py-3 align-top">
+        <td className="min-w-0 px-4 py-3 align-top">
           <input
             className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
             placeholder="To city"

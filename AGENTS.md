@@ -83,7 +83,7 @@ ratw-tracker/
 
 * **LegSelector**: pick **1–6**; persists to `user_settings` and URL (e.g., `?leg=3`).
 * **TeamTabs**: five tabs (A–E); keyboard‑navigable.
-* **RouteTable**: editable grid for segments with inline validate; shows save state per row.
+* **RouteTable**: editable grid for segments with inline validate; shows save state per row. Keep the table `table-fixed` with `min-w-0` cells and `break-words`/`whitespace-pre-wrap` classes on Type/From/To spans so long city names wrap instead of overflowing.
 * **Timeline**: visual bar chart of segments with hover details; scroll‑sync with table.
 * **SummaryPanel**: per‑team ETA to next checkpoint, last city, cumulative elapsed time.
 * **Toasts/Modals**: non‑blocking confirmations; undo delete (10s).

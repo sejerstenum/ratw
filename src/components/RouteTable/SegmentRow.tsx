@@ -73,7 +73,7 @@ export function SegmentRow({
             {index + 1}
           </button>
         </td>
-        <td className="px-4 py-3 align-top break-words">
+        <td className="min-w-0 px-4 py-3 align-top break-words whitespace-pre-wrap">
           {editing ? (
             <select
               className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
@@ -87,10 +87,10 @@ export function SegmentRow({
               ))}
             </select>
           ) : (
-            <span className="block font-medium text-white">{segment.type}</span>
+            <span className="block font-medium text-white break-words whitespace-pre-wrap">{segment.type}</span>
           )}
         </td>
-        <td className="px-4 py-3 align-top break-words">
+        <td className="min-w-0 px-4 py-3 align-top break-words whitespace-pre-wrap">
           {editing ? (
             <input
               className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
@@ -98,10 +98,10 @@ export function SegmentRow({
               onChange={(event) => setDraft((prev) => ({ ...prev, fromCity: event.target.value }))}
             />
           ) : (
-            <span className="block font-medium text-white">{segment.fromCity}</span>
+            <span className="block font-medium text-white break-words whitespace-pre-wrap">{segment.fromCity}</span>
           )}
         </td>
-        <td className="px-4 py-3 align-top break-words">
+        <td className="min-w-0 px-4 py-3 align-top break-words whitespace-pre-wrap">
           {editing ? (
             <input
               className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
@@ -109,7 +109,7 @@ export function SegmentRow({
               onChange={(event) => setDraft((prev) => ({ ...prev, toCity: event.target.value }))}
             />
           ) : (
-            <span className="block font-medium text-white">{segment.toCity}</span>
+            <span className="block font-medium text-white break-words whitespace-pre-wrap">{segment.toCity}</span>
           )}
         </td>
         <td className="px-4 py-3 align-top">

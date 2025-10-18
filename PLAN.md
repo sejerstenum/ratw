@@ -2,6 +2,18 @@
 
 This plan breaks the RATW Tracker MVP into short iterations you can test end‑to‑end. Each iteration includes **goals, scope, acceptance criteria, test script, and deliverables**. Branch naming follows `feat/<topic>`; merge via PR into `dev`, then into `main` when stable.
 
+## Status
+
+- [x] Iteration 0 — Repo scaffold & CI
+- [x] Iteration 1 — Domain models & state layer
+- [x] Iteration 2 — Leg selector (1–6) & team tabs (A–E)
+- [x] Iteration 3 — RouteTable (editable grid) + validation
+- [ ] Iteration 4 — Mandatory breaks & ETA calculations
+- [ ] Iteration 5 — Autosave & autoload (local + cloud API)
+- [ ] Iteration 6 — Summary panel & timeline view
+- [ ] Iteration 7 — Import/Export (CSV/Excel)
+- [ ] Iteration 8 — Polish, access control, and release
+
 ---
 
 ## Iteration 0 — Repo scaffold & CI
