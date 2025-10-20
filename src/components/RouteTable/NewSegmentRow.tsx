@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { SegmentType } from '../../features/segments/segments.types';
+import { DateTimeField } from './DateTimeField';
 import type { SegmentFormState } from './RouteTable';
 
 interface NewSegmentRowProps {
@@ -62,19 +63,21 @@ export function NewSegmentRow({ formState, availableTypes, onCreate }: NewSegmen
           />
         </td>
         <td className="px-4 py-3 align-top">
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-            placeholder="2025-10-27T08:00:00Z"
+          <DateTimeField
+            id="new-segment-departure"
             value={draft.depTime}
-            onChange={(event) => setDraft((prev) => ({ ...prev, depTime: event.target.value }))}
+            onChange={(nextValue) => setDraft((prev) => ({ ...prev, depTime: nextValue }))}
+            dateAriaLabel="Departure date"
+            timeAriaLabel="Departure time"
           />
         </td>
         <td className="px-4 py-3 align-top">
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
-            placeholder="2025-10-27T10:00:00Z"
+          <DateTimeField
+            id="new-segment-arrival"
             value={draft.arrTime}
-            onChange={(event) => setDraft((prev) => ({ ...prev, arrTime: event.target.value }))}
+            onChange={(nextValue) => setDraft((prev) => ({ ...prev, arrTime: nextValue }))}
+            dateAriaLabel="Arrival date"
+            timeAriaLabel="Arrival time"
           />
         </td>
         <td className="px-4 py-3 align-top">

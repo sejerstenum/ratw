@@ -3,6 +3,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 import type { Segment } from '../../features/segments/segments.types';
+import { formatUtcDateTime } from '../../lib/time';
+import { DateTimeField } from './DateTimeField';
 import type { SegmentFormState } from './RouteTable';
 
 interface SegmentRowProps {
@@ -114,24 +116,28 @@ export function SegmentRow({
         </td>
         <td className="px-4 py-3 align-top">
           {editing ? (
-            <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+            <DateTimeField
+              id={`${segment.id}-dep`}
               value={draft.depTime}
-              onChange={(event) => setDraft((prev) => ({ ...prev, depTime: event.target.value }))}
+              onChange={(nextValue) => setDraft((prev) => ({ ...prev, depTime: nextValue }))}
+              dateAriaLabel="Departure date"
+              timeAriaLabel="Departure time"
             />
           ) : (
-            <span className="font-medium text-white">{segment.depTime}</span>
+            <span className="font-medium text-white">{formatUtcDateTime(segment.depTime)}</span>
           )}
         </td>
         <td className="px-4 py-3 align-top">
           {editing ? (
-            <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-sm text-white"
+            <DateTimeField
+              id={`${segment.id}-arr`}
               value={draft.arrTime}
-              onChange={(event) => setDraft((prev) => ({ ...prev, arrTime: event.target.value }))}
+              onChange={(nextValue) => setDraft((prev) => ({ ...prev, arrTime: nextValue }))}
+              dateAriaLabel="Arrival date"
+              timeAriaLabel="Arrival time"
             />
           ) : (
-            <span className="font-medium text-white">{segment.arrTime}</span>
+            <span className="font-medium text-white">{formatUtcDateTime(segment.arrTime)}</span>
           )}
         </td>
         <td className="px-4 py-3 align-top">
