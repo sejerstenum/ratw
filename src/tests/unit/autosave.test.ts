@@ -33,17 +33,17 @@ describe('autosave queue', () => {
 
   it('waits for an inflight flush before processing the next payload', async () => {
     const order: string[] = [];
-    let release: (() => void) | null = null;
+    const releases: Array<() => void> = [];
 
     const queue = createAutosaveQueue<string>({
       delay: 100,
       onFlush: async (value) => {
         order.push(`start-${value}`);
         await new Promise<void>((resolve) => {
-          release = () => {
+          releases.push(() => {
             order.push(`end-${value}`);
             resolve();
-          };
+          });
         });
       },
     });
@@ -51,7 +51,9 @@ describe('autosave queue', () => {
     queue.schedule('alpha');
     await vi.advanceTimersByTimeAsync(100);
     queue.schedule('beta');
-    release?.();
+    releases.shift()?.();
+    await vi.runAllTimersAsync();
+    releases.shift()?.();
     await vi.runAllTimersAsync();
 
     expect(order).toEqual(['start-alpha', 'end-alpha', 'start-beta', 'end-beta']);

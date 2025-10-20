@@ -216,20 +216,27 @@ export function useSegmentsPersistence(): void {
 
         ready = true;
 
-        unsub = useSegmentsStore.subscribe(
-          (state) => state.segments,
-          (segments) => {
-            if (!ready || suppressNextPersist) {
-              suppressNextPersist = false;
-              return;
-            }
-            const payload: AutosavePayload = {
-              segments,
-              updatedAt: new Date().toISOString(),
-            };
-            autosaveQueue.schedule(payload);
-          },
-        );
+        unsub = useSegmentsStore.subscribe((state, previousState) => {
+          if (!ready) {
+            return;
+          }
+
+          if (state.segments === previousState.segments) {
+            return;
+          }
+
+          if (suppressNextPersist) {
+            suppressNextPersist = false;
+            return;
+          }
+
+          const payload: AutosavePayload = {
+            segments: state.segments,
+            updatedAt: new Date().toISOString(),
+          };
+
+          autosaveQueue.schedule(payload);
+        });
 
         if (outbox.length > 0) {
           await syncOutbox();
@@ -324,6 +331,16 @@ export async function keepLocalSnapshot(): Promise<void> {
   await writeSegmentsOutbox([{ ...snapshot, queuedAt: snapshot.updatedAt }]);
 
   const result = await saveCloudSegmentsSnapshot(snapshot, { force: true });
+  if (!result.ok) {
+    useSegmentsStore
+      .getState()
+      .setPersistenceState({
+        persistenceStatus: 'error',
+        syncError: 'Unable to overwrite the cloud snapshot with local changes.',
+      });
+    return;
+  }
+
   remoteCursor = result.snapshot.updatedAt;
   await writeSegmentsOutbox([]);
 

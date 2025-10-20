@@ -2,19 +2,21 @@ import { describe, expect, it } from 'vitest';
 
 import { describeConflictDifferences } from '../../features/segments/segments.persistence';
 import type { SegmentsConflict } from '../../features/segments/segments.store';
+import type { Segment } from '../../features/segments/segments.types';
 
-const makeSegment = (id: string, overrides: Partial<SegmentsConflict['remoteSegments'][number]> = {}) => ({
-  id,
-  teamId: 'A',
-  legNo: 1,
-  type: 'bus' as const,
-  fromCity: 'Lisbon',
-  toCity: 'Porto',
-  depTime: '2025-10-27T08:00:00Z',
-  arrTime: '2025-10-27T10:00:00Z',
-  orderIdx: 0,
-  ...overrides,
-});
+const makeSegment = (id: string, overrides: Partial<Segment> = {}): Segment =>
+  ({
+    id,
+    teamId: 'A',
+    legNo: 1,
+    type: 'bus',
+    fromCity: 'Lisbon',
+    toCity: 'Porto',
+    depTime: '2025-10-27T08:00:00Z',
+    arrTime: '2025-10-27T10:00:00Z',
+    orderIdx: 0,
+    ...overrides,
+  } satisfies Segment);
 
 describe('segments persistence conflict summary', () => {
   it('summarises additions, removals, and updates', () => {
