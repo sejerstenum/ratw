@@ -16,6 +16,33 @@ npm run dev
 
 This starts Vite on [http://localhost:5173](http://localhost:5173). The dev server automatically reloads when you edit files.
 
+## Node BFF (MySQL persistence)
+
+The frontend now talks to a lightweight Node/Express backend-for-frontend that stores segment snapshots in MySQL.
+
+1. Create a `.env` file with your database credentials:
+
+   ```bash
+   MYSQL_HOST=127.0.0.1
+   MYSQL_PORT=3306
+   MYSQL_USER=ratw
+   MYSQL_PASSWORD=super-secret
+   MYSQL_DATABASE=ratw
+   SEGMENTS_TABLE=segment_snapshots
+   SEGMENTS_DATASET=default
+   CORS_ORIGIN=http://localhost:5173
+   ```
+
+2. Start the backend:
+
+   ```bash
+   npm run server
+   ```
+
+   The service listens on port `4000` by default and automatically creates the `segment_snapshots` table if it does not exist.
+
+3. In a second terminal start the Vite dev server with `npm run dev`. Requests to `/api/*` are proxied to the backend during development. When deploying the frontend separately, set `VITE_BFF_URL` to the BFF base URL (for example, `https://tracker.example.com/api`).
+
 ## Available scripts
 
 | Command | Description |
